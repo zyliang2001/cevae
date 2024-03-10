@@ -190,13 +190,13 @@ class cevae(nn.Module):
         # Encoder network
         # p(t|x)
         q_t = self.encoder_dict['t_encoder'](x) 
-        t_hat_enc = nn.F.gumbel_softmax(q_t, tau=1, hard=False) # reparametrization
+        t_hat_enc = nn.functional.gumbel_softmax(q_t, tau=1, hard=False) # reparametrization
 
         # p(y|x, t)
         q_y_1 = self.encoder_dict['y_1_encoder'](x)
         q_y_0 = self.encoder_dict['y_0_encoder'](x)
         q_y = q_y_1 * t_hat_enc + q_y_0 * (1 - t_hat_enc) # select y based on predicted t
-        y_hat_enc = nn.F.gumbel_softmax(q_y, tau=1, hard=False) # reparametrization
+        y_hat_enc = nn.functional.gumbel_softmax(q_y, tau=1, hard=False) # reparametrization
 
         # p(z|x, y, t)
         x_y_concat = torch.cat([x, y_hat_enc], dim=1)
@@ -211,7 +211,7 @@ class cevae(nn.Module):
         # Decoder network
         # p(t|z)
         p_t = self.decoder_dict['t_decoder'](z)
-        t_hat_dec = nn.F.gumbel_softmax(p_t, tau=1, hard=False)
+        t_hat_dec = nn.functional.gumbel_softmax(p_t, tau=1, hard=False)
         
         # p(x_con|z)
         x_con_mu = self.decoder_dict['x_con_mu_decoder'](z)
@@ -244,8 +244,8 @@ class cevae(nn.Module):
         q_y_1 = self.encoder_dict['y_1_encoder'](x)
         q_y_0 = self.encoder_dict['y_0_encoder'](x)
         q_y = q_y_1 * t_hat_enc + q_y_0 * (1 - t_hat_enc) # select y based on predicted t
-        y_hat_enc = nn.F.gumbel_softmax(q_y, tau=1, hard=False) # reparametrization
-
+        y_hat_enc = nn.functional.gumbel_softmax(q_y, tau=1, hard=False) # reparametrization
+        print(y_hat_enc.shape)
         # p(z|x, y, t)
         x_y_concat = torch.cat([x, y_hat_enc], dim=1)
         z_1_mu = self.encoder_dict['Z_1_mu_encoder'](x_y_concat)
@@ -292,8 +292,30 @@ class cevae(nn.Module):
     
     def gaus_prob_loss(self, pred_mu, pred_var, true_value):
         dist = torch.distributions.Normal(pred_mu, pred_var)
-        return -dist.log_prob(true_value)
+        return -torch.sum(dist.log_prob(true_value))
     
     def kl_divergence(self, pred_mus, pred_vars, prior_mu=0, prior_var=1):
         kl_divergence = 0.5 * (torch.log(prior_var / pred_vars) + (pred_vars + (pred_mus - prior_mu)**2) / prior_var - 1)
         return torch.sum(kl_divergence)
+    
+    def train_loss(self, output, batch):
+        q_t, q_y, z_mu, z_var, p_t, x_con_mu, x_con_var, p_x_dis, p_y, y_hat_dec = output
+        loss = 0
+        loss += self.bern_prob_loss(q_t, batch['t'])
+        loss += self.bern_prob_loss(q_y, batch['y'])
+        loss += self.kl_divergence(z_mu, z_var)
+        loss += self.bern_prob_loss(p_t, batch['t'])
+        loss += self.gaus_prob_loss(x_con_mu, x_con_var, batch['x'][:, -1*self.num_con_x:])
+        loss += self.bern_prob_loss(p_x_dis, batch['x'][:, :-1*self.num_con_x])
+        loss += self.bern_prob_loss(p_y, batch['y'])
+        return loss
+    
+    def inference_loss(self, output, batch):
+        q_y, z_mu, z_var, x_con_mu, x_con_var, p_x_dis, p_y, y_hat_dec = output
+        loss = 0
+        loss += self.bern_prob_loss(q_y, batch['y'])
+        loss += self.kl_divergence(z_mu, z_var)
+        loss += self.gaus_prob_loss(x_con_mu, x_con_var, batch['x'][:, -1*self.num_con_x:])
+        loss += self.bern_prob_loss(p_x_dis, batch['x'][:, :-1*self.num_con_x])
+        loss += self.bern_prob_loss(p_y, batch['y'])
+        return loss
