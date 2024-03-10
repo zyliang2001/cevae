@@ -44,8 +44,8 @@ def main():
 
     wandb.init(project="CPH200B A3", entity="zhongyuan_liang", name="CEVAE")
     wandb.watch(model)
-    for epoch in tqdm(range(max_epochs)):
-        for batch_idx, sample in enumerate(train_loader):
+    for __ in tqdm(range(max_epochs)):
+        for __, sample in enumerate(train_loader):
             model.train()
             optimizer.zero_grad()
             output = model(sample)
@@ -54,15 +54,15 @@ def main():
             optimizer.step()
             wandb.log({"Train Loss": loss_with_sampled_t})
 
-        for batch_idx, sample in enumerate(val_loader):
+        for __, sample in enumerate(val_loader):
             model.eval()
             output = model(sample)
             loss_with_sampled_t = model.train_loss(output, sample)
-            wandb.log({"Validation Loss with Sampled t": loss_with_sampled_t})
             output = model.inference(sample)
             loss_with_true_t = model.inference_loss(output, sample)
-            wandb.log({"Validation Loss with True t": loss_with_true_t})
             cate = model.cate(sample)
+            wandb.log({"Validation Loss with Sampled t": loss_with_sampled_t})
+            wandb.log({"Validation Loss with True t": loss_with_true_t})
             wandb.log({"ATE": cate.mean()})
             wandb.log({"CATE MSE": nn.MSELoss()(cate, torch.zeros_like(cate))})
     wandb.finish()

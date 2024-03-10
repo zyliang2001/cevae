@@ -189,14 +189,16 @@ class cevae(nn.Module):
 
         # Encoder network
         # p(t|x)
-        q_t = self.encoder_dict['t_encoder'](x) 
-        t_hat_enc = nn.functional.gumbel_softmax(q_t, tau=1, hard=False) # reparametrization
+        q_t = self.encoder_dict['t_encoder'](x)
+        q_t_reshaped = torch.cat((q_t, 1 - q_t), dim=1)
+        t_hat_enc = torch.nn.functional.gumbel_softmax(q_t_reshaped, tau=1, hard=True, dim=-1)[:, 1].unsqueeze(1) # reparametrization
 
         # p(y|x, t)
         q_y_1 = self.encoder_dict['y_1_encoder'](x)
         q_y_0 = self.encoder_dict['y_0_encoder'](x)
         q_y = q_y_1 * t_hat_enc + q_y_0 * (1 - t_hat_enc) # select y based on predicted t
-        y_hat_enc = nn.functional.gumbel_softmax(q_y, tau=1, hard=False) # reparametrization
+        q_y_reshaped = torch.cat((q_y, 1 - q_y), dim=1)
+        y_hat_enc = torch.nn.functional.gumbel_softmax(q_y_reshaped, tau=1, hard=True, dim=-1)[:, 1].unsqueeze(1) # reparametrization
 
         # p(z|x, y, t)
         x_y_concat = torch.cat([x, y_hat_enc], dim=1)
@@ -211,7 +213,8 @@ class cevae(nn.Module):
         # Decoder network
         # p(t|z)
         p_t = self.decoder_dict['t_decoder'](z)
-        t_hat_dec = nn.functional.gumbel_softmax(p_t, tau=1, hard=False)
+        p_t_reshaped = torch.cat((p_t, 1 - p_t), dim=1)
+        t_hat_dec = torch.nn.functional.gumbel_softmax(p_t_reshaped, tau=1, hard=True, dim=-1)[:, 1].unsqueeze(1) # reparametrization
         
         # p(x_con|z)
         x_con_mu = self.decoder_dict['x_con_mu_decoder'](z)
@@ -224,7 +227,7 @@ class cevae(nn.Module):
         p_y_1 = self.decoder_dict['y_1_decoder'](z)
         p_y_0 = self.decoder_dict['y_0_decoder'](z)
         p_y = p_y_1 * t_hat_dec + p_y_0 * (1 - t_hat_dec)
-        y_hat_dec = torch.bernoulli(p_y)
+        y_hat_dec = torch.bernoulli(p_y) # sample directly from bernoulli since gradient is not needed
         
         return q_t, q_y, z_mu, z_var, p_t, x_con_mu, x_con_var, p_x_dis, p_y, y_hat_dec
     
@@ -244,7 +247,8 @@ class cevae(nn.Module):
         q_y_1 = self.encoder_dict['y_1_encoder'](x)
         q_y_0 = self.encoder_dict['y_0_encoder'](x)
         q_y = q_y_1 * t_hat_enc + q_y_0 * (1 - t_hat_enc) # select y based on predicted t
-        y_hat_enc = nn.functional.gumbel_softmax(q_y, tau=1, hard=False) # reparametrization
+        q_y_reshaped = torch.cat((q_y, 1 - q_y), dim=1)
+        y_hat_enc = torch.nn.functional.gumbel_softmax(q_y_reshaped, tau=1, hard=True, dim=-1)[:, 1].unsqueeze(1) # reparametrization
         # p(z|x, y, t)
         x_y_concat = torch.cat([x, y_hat_enc], dim=1)
         z_1_mu = self.encoder_dict['Z_1_mu_encoder'](x_y_concat)
