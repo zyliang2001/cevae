@@ -233,7 +233,7 @@ class cevae(nn.Module):
         predicting with input x and pre-determined t
         """
         x = batch['x']
-        t = batch['t']
+        t = batch['t'].unsqueeze(1)
         t_hat_enc = t
         t_hat_dec = t
 
@@ -245,7 +245,6 @@ class cevae(nn.Module):
         q_y_0 = self.encoder_dict['y_0_encoder'](x)
         q_y = q_y_1 * t_hat_enc + q_y_0 * (1 - t_hat_enc) # select y based on predicted t
         y_hat_enc = nn.functional.gumbel_softmax(q_y, tau=1, hard=False) # reparametrization
-        print(y_hat_enc.shape)
         # p(z|x, y, t)
         x_y_concat = torch.cat([x, y_hat_enc], dim=1)
         z_1_mu = self.encoder_dict['Z_1_mu_encoder'](x_y_concat)
@@ -291,11 +290,11 @@ class cevae(nn.Module):
         return -torch.sum(true_value * prob_loss_1 + (1 - true_value) * prob_loss_0)
     
     def gaus_prob_loss(self, pred_mu, pred_var, true_value):
-        dist = torch.distributions.Normal(pred_mu, pred_var)
+        dist = torch.distributions.Normal(pred_mu, torch.sqrt(pred_var))
         return -torch.sum(dist.log_prob(true_value))
     
     def kl_divergence(self, pred_mus, pred_vars, prior_mu=0, prior_var=1):
-        kl_divergence = 0.5 * (torch.log(prior_var / pred_vars) + (pred_vars + (pred_mus - prior_mu)**2) / prior_var - 1)
+        kl_divergence = (torch.log(prior_var / pred_vars) + 0.5 * (pred_vars + (pred_mus - prior_mu)**2) / prior_var - 1)
         return torch.sum(kl_divergence)
     
     def train_loss(self, output, batch):
