@@ -191,14 +191,16 @@ class cevae(nn.Module):
         # p(t|x)
         q_t = self.encoder_dict['t_encoder'](x)
         q_t_reshaped = torch.cat((q_t, 1 - q_t), dim=1)
-        t_hat_enc = torch.nn.functional.gumbel_softmax(q_t_reshaped, tau=1, hard=True, dim=-1)[:, 1].unsqueeze(1) # reparametrization
+        log_q_t_reshaped = torch.log(q_t_reshaped)
+        t_hat_enc = torch.nn.functional.gumbel_softmax(log_q_t_reshaped, tau=1, hard=True, dim=-1)[:, 0].unsqueeze(1) # reparametrization
 
         # p(y|x, t)
         q_y_1 = self.encoder_dict['y_1_encoder'](x)
         q_y_0 = self.encoder_dict['y_0_encoder'](x)
         q_y = q_y_1 * t_hat_enc + q_y_0 * (1 - t_hat_enc) # select y based on predicted t
         q_y_reshaped = torch.cat((q_y, 1 - q_y), dim=1)
-        y_hat_enc = torch.nn.functional.gumbel_softmax(q_y_reshaped, tau=1, hard=True, dim=-1)[:, 1].unsqueeze(1) # reparametrization
+        log_q_y_reshaped = torch.log(q_y_reshaped)
+        y_hat_enc = torch.nn.functional.gumbel_softmax(log_q_y_reshaped, tau=1, hard=True, dim=-1)[:, 0].unsqueeze(1) # reparametrization
 
         # p(z|x, y, t)
         x_y_concat = torch.cat([x, y_hat_enc], dim=1)
@@ -214,7 +216,8 @@ class cevae(nn.Module):
         # p(t|z)
         p_t = self.decoder_dict['t_decoder'](z)
         p_t_reshaped = torch.cat((p_t, 1 - p_t), dim=1)
-        t_hat_dec = torch.nn.functional.gumbel_softmax(p_t_reshaped, tau=1, hard=True, dim=-1)[:, 1].unsqueeze(1) # reparametrization
+        log_p_t_reshaped = torch.log(p_t_reshaped)
+        t_hat_dec = torch.nn.functional.gumbel_softmax(log_p_t_reshaped, tau=1, hard=True, dim=-1)[:, 0].unsqueeze(1) # reparametrization
         
         # p(x_con|z)
         x_con_mu = self.decoder_dict['x_con_mu_decoder'](z)

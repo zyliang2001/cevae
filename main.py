@@ -12,6 +12,7 @@ import sys
 sys.path.append('.')
 
 def main():
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     IST_proxy_data = pd.read_csv('data/IST_proxy_data.csv')
 
     # Define variables
@@ -36,35 +37,39 @@ def main():
     val_loader = DataLoader(val_dataset, batch_size=15253, shuffle=False)
 
     # Define the network
-    model = cevae(len(x_variables), len(x_con_variables))
-    max_epochs = 100
+    model = cevae(len(x_variables), len(x_con_variables)).to(device)
+    max_epochs = 200
 
     # Define the optimizer
     optimizer = optim.Adam(model.parameters(), lr=0.001)
 
-    wandb.init(project="CPH200B A3", entity="zhongyuan_liang", name="CEVAE")
+    wandb.init(project="CPH200B A3", entity="zhongyuan_liang", name="CEVAE", sync_tensorboard=True)
     wandb.watch(model)
     for __ in tqdm(range(max_epochs)):
         for __, sample in enumerate(train_loader):
+            sample = {key: value.to(device) for key, value in sample.items()}
             model.train()
             optimizer.zero_grad()
             output = model(sample)
             loss_with_sampled_t = model.train_loss(output, sample)
             loss_with_sampled_t.backward()
             optimizer.step()
-            wandb.log({"Train Loss": loss_with_sampled_t})
+            with torch.cuda.device(device):
+                wandb.log({"Train Loss": loss_with_sampled_t})
 
         for __, sample in enumerate(val_loader):
+            sample = {key: value.to(device) for key, value in sample.items()}
             model.eval()
             output = model(sample)
             loss_with_sampled_t = model.train_loss(output, sample)
             output = model.inference(sample)
             loss_with_true_t = model.inference_loss(output, sample)
             cate = model.cate(sample)
-            wandb.log({"Validation Loss with Sampled t": loss_with_sampled_t})
-            wandb.log({"Validation Loss with True t": loss_with_true_t})
-            wandb.log({"ATE": cate.mean()})
-            wandb.log({"CATE MSE": nn.MSELoss()(cate, torch.zeros_like(cate))})
+            with torch.cuda.device(device):
+                wandb.log({"Validation Loss with Sampled t": loss_with_sampled_t})
+                wandb.log({"Validation Loss with True t": loss_with_true_t})
+                wandb.log({"ATE": cate.mean()})
+                wandb.log({"CATE MSE": nn.MSELoss()(cate, torch.zeros_like(cate))})
     wandb.finish()
 
 if __name__ == "__main__":
