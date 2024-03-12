@@ -51,11 +51,18 @@ def main():
             model.train()
             optimizer.zero_grad()
             output = model(sample)
-            loss_with_sampled_t = model.train_loss(output, sample)
+            loss_with_sampled_t, q_t_loss, q_y_loss, z_kl_loss, p_t_loss, p_x_con_loss, p_x_dis_loss, p_y_loss = model.train_loss(output, sample)
             loss_with_sampled_t.backward()
             optimizer.step()
             with torch.cuda.device(device):
-                wandb.log({"Train Loss": loss_with_sampled_t})
+                wandb.log({"Train Overall Loss": loss_with_sampled_t})
+                wandb.log({"Train Encoder t Reconstruction Loss": q_t_loss})
+                wandb.log({"Train Encoder y Reconstruction Loss": q_y_loss})
+                wandb.log({"Train Z KL Loss": z_kl_loss})
+                wandb.log({"Train Decoder t Reconstruction Loss": p_t_loss})
+                wandb.log({"Train Decoder x Continuous Reconstruction Loss": p_x_con_loss})
+                wandb.log({"Train Decoder x Discrete Reconstruction Loss": p_x_dis_loss})
+                wandb.log({"Train Decoder y Reconstruction Loss": p_y_loss})
 
         for __, sample in enumerate(val_loader):
             sample = {key: value.to(device) for key, value in sample.items()}
