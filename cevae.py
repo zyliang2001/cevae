@@ -101,10 +101,10 @@ class cevae(nn.Module):
             't_encoder': t_encoder,
             'y_1_encoder': y_1_encoder,
             'y_0_encoder': y_0_encoder,
-            'Z_1_mu_encoder': z_1_mu_encoder,
-            'Z_1_var_encoder': z_1_var_encoder,
-            'Z_0_mu_encoder': z_0_mu_encoder,
-            'Z_0_var_encoder': z_0_var_encoder
+            'z_1_mu_encoder': z_1_mu_encoder,
+            'z_1_var_encoder': z_1_var_encoder,
+            'z_0_mu_encoder': z_0_mu_encoder,
+            'z_0_var_encoder': z_0_var_encoder
         })
         
     
@@ -204,10 +204,10 @@ class cevae(nn.Module):
 
         # p(z|x, y, t)
         x_y_concat = torch.cat([x, y_hat_enc], dim=1)
-        z_1_mu = self.encoder_dict['Z_1_mu_encoder'](x_y_concat)
-        z_1_var = self.encoder_dict['Z_1_var_encoder'](x_y_concat)
-        z_0_mu = self.encoder_dict['Z_0_mu_encoder'](x_y_concat)
-        z_0_var = self.encoder_dict['Z_0_var_encoder'](x_y_concat)
+        z_1_mu = self.encoder_dict['z_1_mu_encoder'](x_y_concat)
+        z_1_var = self.encoder_dict['z_1_var_encoder'](x_y_concat)
+        z_0_mu = self.encoder_dict['z_0_mu_encoder'](x_y_concat)
+        z_0_var = self.encoder_dict['z_0_var_encoder'](x_y_concat)
         z_mu = z_1_mu * t_hat_enc + z_0_mu * (1 - t_hat_enc) # select z mu based on predicted t
         z_var = z_1_var * t_hat_enc + z_0_var * (1 - t_hat_enc) # select z var based on predicted t
         z = self.__reparam_gaussian(z_mu, z_var) # reparametrization
@@ -252,12 +252,13 @@ class cevae(nn.Module):
         q_y = q_y_1 * t_hat_enc + q_y_0 * (1 - t_hat_enc) # select y based on predicted t
         q_y_reshaped = torch.cat((q_y, 1 - q_y), dim=1)
         y_hat_enc = torch.nn.functional.gumbel_softmax(q_y_reshaped, tau=1, hard=True, dim=-1)[:, 1].unsqueeze(1) # reparametrization
+        
         # p(z|x, y, t)
         x_y_concat = torch.cat([x, y_hat_enc], dim=1)
-        z_1_mu = self.encoder_dict['Z_1_mu_encoder'](x_y_concat)
-        z_1_var = self.encoder_dict['Z_1_var_encoder'](x_y_concat)
-        z_0_mu = self.encoder_dict['Z_0_mu_encoder'](x_y_concat)
-        z_0_var = self.encoder_dict['Z_0_var_encoder'](x_y_concat)
+        z_1_mu = self.encoder_dict['z_1_mu_encoder'](x_y_concat)
+        z_1_var = self.encoder_dict['z_1_var_encoder'](x_y_concat)
+        z_0_mu = self.encoder_dict['z_0_mu_encoder'](x_y_concat)
+        z_0_var = self.encoder_dict['z_0_var_encoder'](x_y_concat)
         z_mu = z_1_mu * t_hat_enc + z_0_mu * (1 - t_hat_enc) # select z mu based on predicted t
         z_var = z_1_var * t_hat_enc + z_0_var * (1 - t_hat_enc) # select z var based on predicted t
         z = self.__reparam_gaussian(z_mu, z_var) # reparametrization
@@ -284,9 +285,12 @@ class cevae(nn.Module):
         """
         predicting CATE with input x and pre-determined t
         """
-        batch['t'] = torch.zeros_like(batch['t'])
-        inference_0 = self.inference(batch)
-        batch['t'] = torch.ones_like(batch['t'])
+        inference_0_sample = batch.copy()
+        inference_0_sample['t'] = torch.zeros_like(inference_0_sample['t'])
+        inference_0 = self.inference(inference_0_sample)
+
+        inference_1_sample = batch.copy()
+        inference_1_sample['t'] = torch.ones_like(inference_1_sample['t'])
         inference_1 = self.inference(batch)
 
         return inference_1[-1] - inference_0[-1]
@@ -294,15 +298,15 @@ class cevae(nn.Module):
     def bern_prob_loss(self, pred_p, true_value):
         prob_loss_1 = torch.log(pred_p + 1e-10)
         prob_loss_0 = torch.log(1 - pred_p + 1e-10)
-        return -torch.sum(true_value * prob_loss_1 + (1 - true_value) * prob_loss_0)
+        return -torch.mean(true_value * prob_loss_1 + (1 - true_value) * prob_loss_0)
     
     def gaus_prob_loss(self, pred_mu, pred_var, true_value):
         dist = torch.distributions.Normal(pred_mu, torch.sqrt(pred_var))
-        return -torch.sum(dist.log_prob(true_value))
+        return -torch.mean(dist.log_prob(true_value))
     
     def kl_divergence(self, pred_mus, pred_vars, prior_mu=0, prior_var=1):
         kl_divergence = (torch.log(prior_var / pred_vars) + 0.5 * (pred_vars + (pred_mus - prior_mu)**2) / prior_var - 1)
-        return torch.sum(kl_divergence)
+        return torch.mean(kl_divergence)
     
     def train_loss(self, output, batch):
         q_t, q_y, z_mu, z_var, p_t, x_con_mu, x_con_var, p_x_dis, p_y, y_hat_dec = output
