@@ -154,15 +154,15 @@ class cevae_plus(nn.Module):
         forward pass with input x alone
         """
         x = batch['x']
-        t_hat_enc = batch['t'].unsqueeze(1)
-        t_hat_dec = batch['t'].unsqueeze(1)
+        # t_hat_enc = batch['t'].unsqueeze(1)
+        # t_hat_dec = batch['t'].unsqueeze(1)
 
         # Encoder network
         # p(t|x)
         q_t = self.t_encoder(x)
-        # q_t_reshaped = torch.cat((q_t, 1 - q_t), dim=1)
-        # log_q_t_reshaped = torch.log(q_t_reshaped)
-        # t_hat_enc = torch.nn.functional.gumbel_softmax(log_q_t_reshaped, tau=1, hard=True, dim=-1)[:, 0].unsqueeze(1) # reparametrization
+        q_t_reshaped = torch.cat((q_t, 1 - q_t), dim=1)
+        log_q_t_reshaped = torch.log(q_t_reshaped)
+        t_hat_enc = torch.nn.functional.gumbel_softmax(log_q_t_reshaped, tau=1, hard=True, dim=-1)[:, 0].unsqueeze(1) # reparametrization
 
         # p(y|x, t)
         q_y_temp = self.y_encoder(x)
@@ -189,9 +189,9 @@ class cevae_plus(nn.Module):
         # Decoder network
         # p(t|z)
         p_t = self.t_decoder(z)
-        # p_t_reshaped = torch.cat((p_t, 1 - p_t), dim=1)
-        # log_p_t_reshaped = torch.log(p_t_reshaped)
-        # t_hat_dec = torch.nn.functional.gumbel_softmax(log_p_t_reshaped, tau=1, hard=True, dim=-1)[:, 0].unsqueeze(1) # reparametrization
+        p_t_reshaped = torch.cat((p_t, 1 - p_t), dim=1)
+        log_p_t_reshaped = torch.log(p_t_reshaped)
+        t_hat_dec = torch.nn.functional.gumbel_softmax(log_p_t_reshaped, tau=1, hard=True, dim=-1)[:, 0].unsqueeze(1) # reparametrization
         
         x_temp = self.x_decoder(z)
 
@@ -289,10 +289,6 @@ class cevae_plus(nn.Module):
         prob_loss_0 = torch.log(1 - pred_p + 1e-10)
         return -torch.mean(true_value * prob_loss_1 + (1 - true_value) * prob_loss_0)
     
-    def bern_prob_loss_y(self, pred_p, true_value):
-        prob_loss = torch.log(pred_p + 1e-10)
-        return -torch.mean(true_value * prob_loss + (1 - true_value) * prob_loss)
-    
     def gaus_prob_loss(self, pred_mu, pred_var, true_value):
         dist = torch.distributions.Normal(pred_mu, torch.sqrt(pred_var))
         return -torch.mean(dist.log_prob(true_value))
@@ -303,23 +299,22 @@ class cevae_plus(nn.Module):
     
     def train_loss(self, output, batch):
         q_t, q_y, z_mu, z_var, p_t, x_con_mu, x_con_var, p_x_dis, p_y, y_hat_dec = output
-        q_t_loss = self.bern_prob_loss(q_t, batch['t'])
-        q_y_loss = self.bern_prob_loss_y(q_y, batch['y'])
-        z_kl_loss = 0 # self.kl_divergence(z_mu, z_var)
-        p_t_loss = self.bern_prob_loss(p_t, batch['t'])
+        q_t_loss = self.bern_prob_loss(q_t, batch['t'].view(-1,1))
+        q_y_loss = self.bern_prob_loss(q_y, batch['y'].view(-1,1))
+        z_kl_loss = self.kl_divergence(z_mu, z_var)
+        p_t_loss = self.bern_prob_loss(p_t, batch['t'].view(-1,1))
         p_x_con_loss = self.gaus_prob_loss(x_con_mu, x_con_var, batch['x'][:, -1*self.num_con_x:])
         p_x_dis_loss = self.bern_prob_loss(p_x_dis, batch['x'][:, :-1*self.num_con_x])
-        p_y_loss = self.bern_prob_loss_y(p_y, batch['y'])
-        # loss = q_t_loss + q_y_loss + z_kl_loss + p_t_loss + p_x_con_loss + p_x_dis_loss + p_y_loss
-        loss = q_y_loss + z_kl_loss + p_x_con_loss + p_x_dis_loss + p_y_loss
+        p_y_loss =  self.bern_prob_loss(p_y, batch['y'].view(-1,1)) 
+        loss = q_t_loss + q_y_loss + z_kl_loss + p_t_loss + p_x_con_loss + p_x_dis_loss + p_y_loss
         return loss, q_t_loss, q_y_loss, z_kl_loss, p_t_loss, p_x_con_loss, p_x_dis_loss, p_y_loss
     
     def inference_loss(self, output, batch):
         q_y, z_mu, z_var, x_con_mu, x_con_var, p_x_dis, p_y_1, p_y_0, p_y, y_hat_dec = output
         loss = 0
-        loss += self.bern_prob_loss_y(q_y, batch['y'])
-        loss += 0 # self.kl_divergence(z_mu, z_var)
+        loss += self.bern_prob_loss(q_y, batch['y'].view(-1,1)) 
+        loss += self.kl_divergence(z_mu, z_var)
         loss += self.gaus_prob_loss(x_con_mu, x_con_var, batch['x'][:, -1*self.num_con_x:])
         loss += self.bern_prob_loss(p_x_dis, batch['x'][:, :-1*self.num_con_x])
-        loss += self.bern_prob_loss_y(p_y, batch['y'])
+        loss += self.bern_prob_loss(q_y, batch['y'].view(-1,1)) 
         return loss

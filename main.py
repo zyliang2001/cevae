@@ -12,8 +12,8 @@ import sys
 sys.path.append('.')
 
 def main():
-    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    device = "cpu"
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    #device = "cpu"
     IST_proxy_data = pd.read_csv('data/IST_confounded_data.csv')
 
     # Define variables
