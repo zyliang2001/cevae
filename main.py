@@ -47,7 +47,7 @@ def main():
     # Define the optimizer
     optimizer = optim.Adam(model.parameters(), lr=0.0001)
 
-    wandb.init(project="CPH200B A3", entity="zhongyuan_liang", name="cevae_pro_max", sync_tensorboard=True)
+    wandb.init(project="CPH200B A3", entity="zhongyuan_liang", name="cevae_pro_max_balacing", sync_tensorboard=True)
     wandb.watch(model)
     for __ in tqdm(range(max_epochs)):
         for __, sample in enumerate(train_loader):

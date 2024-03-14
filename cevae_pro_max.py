@@ -374,13 +374,13 @@ class cevae_pro_max(nn.Module):
     def train_loss(self, output, batch):
         q_t, q_y, z_mu, z_var, p_t, x_con_mu, x_con_var, p_x_dis, p_y, y_hat_dec = output
         q_t_loss = self.bern_prob_loss(q_t, batch['t'].view(-1,1))
-        q_y_loss = self.bern_prob_loss(q_y, batch['y'].view(-1,1))
-        z_kl_loss = self.kl_divergence_cov(z_mu, z_var)
+        q_y_loss = 10*self.bern_prob_loss(q_y, batch['y'].view(-1,1))
+        z_kl_loss = 0.1*self.kl_divergence_cov(z_mu, z_var)
         mmd_loss = self.mmd_loss(z_mu, batch['t'], batch['t'].mean())
         p_t_loss = self.bern_prob_loss(p_t, batch['t'].view(-1,1))
-        p_x_con_loss = self.gaus_prob_loss(x_con_mu, x_con_var, batch['x'][:, -1*self.num_con_x:])
+        p_x_con_loss = 0.01*self.gaus_prob_loss(x_con_mu, x_con_var, batch['x'][:, -1*self.num_con_x:])
         p_x_dis_loss = self.bern_prob_loss(p_x_dis, batch['x'][:, :-1*self.num_con_x])
-        p_y_loss =  self.bern_prob_loss(p_y, batch['y'].view(-1,1)) 
+        p_y_loss =  10*self.bern_prob_loss(p_y, batch['y'].view(-1,1)) 
         loss = q_t_loss + q_y_loss + z_kl_loss + mmd_loss + p_t_loss + p_x_con_loss + p_x_dis_loss + p_y_loss
         return loss, q_t_loss, q_y_loss, z_kl_loss, mmd_loss, p_t_loss, p_x_con_loss, p_x_dis_loss, p_y_loss
     
