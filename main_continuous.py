@@ -39,19 +39,28 @@ def main():
 
     # Define the network
     model = cevae_continuous(len(x_variables), len(x_con_variables)).to(device)
-    max_epochs = 200
+    max_epochs = 2000
 
     # Define the optimizer
     optimizer = optim.Adam(model.parameters(), lr=0.001)
 
-    wandb.init(project="CPH200B A3", entity="zhongyuan_liang", name="CEVAE ihdp given t no bern reparam", sync_tensorboard=True)
+    wandb.init(project="CPH200B A3", entity="zhongyuan_liang", name="CEVAE ihdp", sync_tensorboard=True)
     wandb.watch(model)
     for __ in tqdm(range(max_epochs)):
         for __, sample in enumerate(train_loader):
             sample = {key: value.to(device) for key, value in sample.items()}
+            sample['t'] = sample['t'].unsqueeze(-1)
+            sample['y'] = sample['y'].unsqueeze(-1)
             model.train()
             optimizer.zero_grad()
             output = model(sample)
+
+            print('pred t mean: ', output[0].mean())
+            print('t_encoder weights mean: ', model.t_encoder[0].weight.mean())
+            print('t_encoder bias mean: ', model.t_encoder[0].bias.mean())
+            print('t_encoder weights grad mean: ', model.t_encoder[0].weight.grad.mean())
+            print('t_encoder bias grad mean: ', model.t_encoder[0].bias.grad.mean())
+            
             loss_with_sampled_t, q_t_loss, q_y_loss, z_kl_loss, p_t_loss, p_x_con_loss, p_x_dis_loss, p_y_loss = model.train_loss(output, sample)
             loss_with_sampled_t.backward()
             optimizer.step()
@@ -67,6 +76,8 @@ def main():
 
         for __, sample in enumerate(val_loader):
             sample = {key: value.to(device) for key, value in sample.items()}
+            sample['t'] = sample['t'].unsqueeze(-1)
+            sample['y'] = sample['y'].unsqueeze(-1)
             model.eval()
             output = model(sample)
             loss_with_sampled_t = model.train_loss(output, sample)

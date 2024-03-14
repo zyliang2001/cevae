@@ -28,7 +28,7 @@ class cevae_continuous(nn.Module):
 
     def __build_encoder(self):
         # p(t|x)
-        t_encoder = nn.Sequential(
+        self.t_encoder = nn.Sequential(
             nn.Linear(self.x_dim, 200),
             nn.ELU(),
             nn.Linear(200, 1),
@@ -36,20 +36,18 @@ class cevae_continuous(nn.Module):
         )
 
         # p(y|x, t)
-        y_encoder = nn.Sequential(
+        self.y_encoder = nn.Sequential(
             nn.Linear(self.x_dim, 200),
             nn.ELU(),
             nn.Linear(200, 200),
             nn.ELU()
         )
-        y_1_mu_encoder = nn.Sequential(
-            y_encoder,
+        self.y_1_mu_encoder = nn.Sequential(
             nn.Linear(200, 200),
             nn.ELU(),
             nn.Linear(200, self.y_dim)
         )
-        y_0_mu_encoder = nn.Sequential(
-            y_encoder,
+        self.y_0_mu_encoder = nn.Sequential(
             nn.Linear(200, 200),
             nn.ELU(),
             nn.Linear(200, self.y_dim)
@@ -57,7 +55,7 @@ class cevae_continuous(nn.Module):
 
         # p(z|x, y, t)
         # mu is not bounded but logvar is bounded in (0, inf)
-        z_encoder = nn.Sequential(
+        self.z_encoder = nn.Sequential(
             nn.Linear(self.x_dim + self.y_dim, 200),
             nn.ELU(),
             nn.Linear(200, 200),
@@ -65,50 +63,33 @@ class cevae_continuous(nn.Module):
             nn.Linear(200, 200),
             nn.ELU()
         )
-        z_1_encoder = nn.Sequential(
-            z_encoder,
+        self.z_1_encoder = nn.Sequential(
             nn.Linear(200, 200),
             nn.ELU()
         )
-        z_1_mu_encoder = nn.Sequential(
-            z_1_encoder,
+        self.z_1_mu_encoder = nn.Sequential(
             nn.Linear(200, self.z_dim)
         )
-        z_1_var_encoder = nn.Sequential(
-            z_1_encoder,
+        self.z_1_var_encoder = nn.Sequential(
             nn.Linear(200, self.z_dim),
             nn.Softplus()
         )
 
-        z_0_encoder = nn.Sequential(
-            z_encoder,
+        self.z_0_encoder = nn.Sequential(
             nn.Linear(200, 200),
             nn.ELU()
         )
-        z_0_mu_encoder = nn.Sequential(
-            z_0_encoder,
+        self.z_0_mu_encoder = nn.Sequential(
             nn.Linear(200, self.z_dim)
         )
-        z_0_var_encoder = nn.Sequential(
-            z_0_encoder,
+        self.z_0_var_encoder = nn.Sequential(
             nn.Linear(200, self.z_dim),
             nn.Softplus()
         )
 
-        self.encoder_dict = nn.ModuleDict({
-            't_encoder': t_encoder,
-            'y_1_mu_encoder': y_1_mu_encoder,
-            'y_0_mu_encoder': y_0_mu_encoder,
-            'z_1_mu_encoder': z_1_mu_encoder,
-            'z_1_var_encoder': z_1_var_encoder,
-            'z_0_mu_encoder': z_0_mu_encoder,
-            'z_0_var_encoder': z_0_var_encoder
-        })
-        
-    
     def __build_decoder(self):
         # p(t|z)
-        t_decoder = nn.Sequential(
+        self.t_decoder = nn.Sequential(
             nn.Linear(self.z_dim, 200),
             nn.ELU(),
             nn.Linear(200, self.t_dim),
@@ -117,30 +98,26 @@ class cevae_continuous(nn.Module):
 
         # p(x_con|z)
         # mu is not bounded but var is bounded in (0, inf)
-        x_decoder = nn.Sequential(
+        self.x_decoder = nn.Sequential(
             nn.Linear(self.z_dim, 200),
             nn.ELU(),
             nn.Linear(200, 200),
             nn.ELU()
         )
-        x_con_decoder = nn.Sequential(
-            x_decoder,
+        self.x_con_decoder = nn.Sequential(
             nn.Linear(200, 200),
             nn.ELU(),
         )
-        x_con_mu_decoder = nn.Sequential(
-            x_con_decoder,
+        self.x_con_mu_decoder = nn.Sequential(
             nn.Linear(200, self.num_con_x),
         )
-        x_con_var_decoder = nn.Sequential(
-            x_con_decoder,
+        self.x_con_var_decoder = nn.Sequential(
             nn.Linear(200, self.num_con_x),
             nn.Softplus()
         )
 
         # p(x_dis|z)
-        x_dis_decoder = nn.Sequential(
-            x_decoder,
+        self.x_dis_decoder = nn.Sequential(
             nn.Linear(200, 200),
             nn.ELU(),
             nn.Linear(200, self.num_dis_x),
@@ -149,7 +126,7 @@ class cevae_continuous(nn.Module):
 
         # p(y|z, t)
         # mu is not bounded and var is fixed to 1
-        y_1_mu_decoder = nn.Sequential(
+        self.y_1_mu_decoder = nn.Sequential(
             nn.Linear(self.z_dim, 200),
             nn.ELU(),
             nn.Linear(200, 200),
@@ -158,7 +135,7 @@ class cevae_continuous(nn.Module):
             nn.ELU(),
             nn.Linear(200, self.y_dim)
         )
-        y_0_mu_decoder = nn.Sequential(
+        self.y_0_mu_decoder = nn.Sequential(
             nn.Linear(self.z_dim, 200),
             nn.ELU(),
             nn.Linear(200, 200),
@@ -167,70 +144,65 @@ class cevae_continuous(nn.Module):
             nn.ELU(),
             nn.Linear(200, self.y_dim)
         )
-
-        self.decoder_dict = nn.ModuleDict({
-            't_decoder': t_decoder,
-            'x_con_mu_decoder': x_con_mu_decoder,
-            'x_con_var_decoder': x_con_var_decoder,
-            'x_dis_decoder': x_dis_decoder,
-            'y_1_mu_decoder': y_1_mu_decoder,
-            'y_0_mu_decoder': y_0_mu_decoder
-        })
 
     def forward(self, batch):
         """
         forward pass with input x alone
         """
         x = batch['x']
-        t = batch['t'].unsqueeze(1)
-        t_hat_enc = t
-        t_hat_dec = t
+        # t = batch['t']
+        # t_hat_enc = t
+        # t_hat_dec = t
 
         # Encoder network
         # p(t|x)
-        q_t = self.encoder_dict['t_encoder'](x)
-        # q_t_reshaped = torch.cat((q_t, 1 - q_t), dim=1)
-        # log_q_t_reshaped = torch.log(q_t_reshaped)
-        # t_hat_enc = torch.nn.functional.gumbel_softmax(log_q_t_reshaped, tau=1, hard=True, dim=-1)[:, 0].unsqueeze(1) # reparametrization
+        q_t = self.t_encoder(x)
+        q_t_reshaped = torch.cat((q_t, 1 - q_t), dim=1)
+        log_q_t_reshaped = torch.log(q_t_reshaped)
+        t_hat_enc = torch.nn.functional.gumbel_softmax(log_q_t_reshaped, tau=1, hard=True, dim=-1)[:, 0].unsqueeze(1) # reparametrization
 
         # p(y|x, t)
-        y_1_mu_enc = self.encoder_dict['y_1_mu_encoder'](x)
-        y_0_mu_enc = self.encoder_dict['y_0_mu_encoder'](x)
+        y_temp = self.y_encoder(x)
+        y_1_mu_enc = self.y_1_mu_encoder(y_temp)
+        y_0_mu_enc = self.y_0_mu_encoder(y_temp)
         y_mu_enc = y_1_mu_enc * t_hat_enc + y_0_mu_enc * (1 - t_hat_enc) # select y based on predicted t
-        # y_hat_enc = self.__reparam_gaussian(y_mu_enc, torch.ones_like(y_mu_enc)) # reparametrization
-        y_hat_enc = y_mu_enc
+        y_hat_enc = self.__reparam_gaussian(y_mu_enc, torch.ones_like(y_mu_enc)) # reparametrization
 
         # p(z|x, y, t)
         x_y_concat = torch.cat([x, y_hat_enc], dim=1)
-        z_1_mu = self.encoder_dict['z_1_mu_encoder'](x_y_concat)
-        z_1_var = self.encoder_dict['z_1_var_encoder'](x_y_concat)
-        z_0_mu = self.encoder_dict['z_0_mu_encoder'](x_y_concat)
-        z_0_var = self.encoder_dict['z_0_var_encoder'](x_y_concat)
+        z_temp = self.z_encoder(x_y_concat)
+        z_1_temp = self.z_1_encoder(z_temp)
+        z_1_mu = self.z_1_mu_encoder(z_1_temp)
+        z_1_var = self.z_1_var_encoder(z_1_temp)
+        z_0_temp = self.z_0_encoder(z_temp)
+        z_0_mu = self.z_0_mu_encoder(z_0_temp)
+        z_0_var = self.z_0_var_encoder(z_0_temp)
         z_mu = z_1_mu * t_hat_enc + z_0_mu * (1 - t_hat_enc) # select z mu based on predicted t
         z_var = z_1_var * t_hat_enc + z_0_var * (1 - t_hat_enc) # select z var based on predicted t
-        # z = self.__reparam_gaussian(z_mu, z_var) # reparametrization
-        z = z_mu
+        z = self.__reparam_gaussian(z_mu, z_var) # reparametrization
 
         # Decoder network
         # p(t|z)
-        p_t = self.decoder_dict['t_decoder'](z)
-        # p_t_reshaped = torch.cat((p_t, 1 - p_t), dim=1)
-        # log_p_t_reshaped = torch.log(p_t_reshaped)
-        # t_hat_dec = torch.nn.functional.gumbel_softmax(log_p_t_reshaped, tau=1, hard=True, dim=-1)[:, 0].unsqueeze(1) # reparametrization
-        
+        p_t = self.t_decoder(z)
+        p_t_reshaped = torch.cat((p_t, 1 - p_t), dim=1)
+        log_p_t_reshaped = torch.log(p_t_reshaped)
+        t_hat_dec = torch.nn.functional.gumbel_softmax(log_p_t_reshaped, tau=1, hard=True, dim=-1)[:, 0].unsqueeze(1) # reparametrization
+
+        x_temp = self.x_decoder(z)
+
         # p(x_con|z)
-        x_con_mu = self.decoder_dict['x_con_mu_decoder'](z)
-        x_con_var = self.decoder_dict['x_con_var_decoder'](z)
+        x_con_temp = self.x_con_decoder(x_temp)
+        x_con_mu = self.x_con_mu_decoder(x_con_temp)
+        x_con_var = self.x_con_var_decoder(x_con_temp)
 
         # p(x_dis|z)
-        p_x_dis = self.decoder_dict['x_dis_decoder'](z)
+        p_x_dis = self.x_dis_decoder(x_temp)
         
         # p(y|z, t)
-        y_1_mu_dec = self.decoder_dict['y_1_mu_decoder'](z)
-        y_0_mu_dec = self.decoder_dict['y_0_mu_decoder'](z)
+        y_1_mu_dec = self.y_1_mu_decoder(z)
+        y_0_mu_dec = self.y_0_mu_decoder(z)
         y_mu_dec = y_1_mu_dec * t_hat_dec + y_0_mu_dec * (1 - t_hat_dec)
-        # y_hat_dec = self.__reparam_gaussian(y_mu_dec, torch.ones_like(y_mu_dec)) # reparametrization
-        y_hat_dec = y_mu_dec
+        y_hat_dec = self.__reparam_gaussian(y_mu_dec, torch.ones_like(y_mu_dec)) # reparametrization
         
         return q_t, y_mu_enc, z_mu, z_var, p_t, x_con_mu, x_con_var, p_x_dis, y_mu_dec, y_hat_dec
     
@@ -239,7 +211,7 @@ class cevae_continuous(nn.Module):
         predicting with input x and pre-determined t
         """
         x = batch['x']
-        t = batch['t'].unsqueeze(1)
+        t = batch['t']
         t_hat_enc = t
         t_hat_dec = t
 
@@ -247,39 +219,43 @@ class cevae_continuous(nn.Module):
         # p(t|z) is voided
 
         # p(y|x, t)
-        y_1_mu_enc = self.encoder_dict['y_1_mu_encoder'](x)
-        y_0_mu_enc = self.encoder_dict['y_0_mu_encoder'](x)
+        y_temp = self.y_encoder(x)
+        y_1_mu_enc = self.y_1_mu_encoder(y_temp)
+        y_0_mu_enc = self.y_0_mu_encoder(y_temp)
         y_mu_enc = y_1_mu_enc * t_hat_enc + y_0_mu_enc * (1 - t_hat_enc) # select y based on predicted t
-        # y_hat_enc = self.__reparam_gaussian(y_mu_enc, torch.ones_like(y_mu_enc)) # reparametrization
-        y_hat_enc = y_mu_enc
+        y_hat_enc = self.__reparam_gaussian(y_mu_enc, torch.ones_like(y_mu_enc)) # reparametrization
         
         # p(z|x, y, t)
         x_y_concat = torch.cat([x, y_hat_enc], dim=1)
-        z_1_mu = self.encoder_dict['z_1_mu_encoder'](x_y_concat)
-        z_1_var = self.encoder_dict['z_1_var_encoder'](x_y_concat)
-        z_0_mu = self.encoder_dict['z_0_mu_encoder'](x_y_concat)
-        z_0_var = self.encoder_dict['z_0_var_encoder'](x_y_concat)
+        z_temp = self.z_encoder(x_y_concat)
+        z_1_temp = self.z_1_encoder(z_temp)
+        z_1_mu = self.z_1_mu_encoder(z_1_temp)
+        z_1_var = self.z_1_var_encoder(z_1_temp)
+        z_0_temp = self.z_0_encoder(z_temp)
+        z_0_mu = self.z_0_mu_encoder(z_0_temp)
+        z_0_var = self.z_0_var_encoder(z_0_temp)
         z_mu = z_1_mu * t_hat_enc + z_0_mu * (1 - t_hat_enc) # select z mu based on predicted t
         z_var = z_1_var * t_hat_enc + z_0_var * (1 - t_hat_enc) # select z var based on predicted t
-        # z = self.__reparam_gaussian(z_mu, z_var) # reparametrization
-        z = z_mu
+        z = self.__reparam_gaussian(z_mu, z_var) # reparametrization
 
         # Decoder network
         # p(t|z) is voided
         
+        x_temp = self.x_decoder(z)
+
         # p(x_con|z)
-        x_con_mu = self.decoder_dict['x_con_mu_decoder'](z)
-        x_con_var = self.decoder_dict['x_con_var_decoder'](z)
+        x_con_temp = self.x_con_decoder(x_temp)
+        x_con_mu = self.x_con_mu_decoder(x_con_temp)
+        x_con_var = self.x_con_var_decoder(x_con_temp)
 
         # p(x_dis|z)
-        p_x_dis = self.decoder_dict['x_dis_decoder'](z)
+        p_x_dis = self.x_dis_decoder(x_temp)
         
         # p(y|z, t)
-        y_1_mu_dec = self.decoder_dict['y_1_mu_decoder'](z)
-        y_0_mu_dec = self.decoder_dict['y_0_mu_decoder'](z)
+        y_1_mu_dec = self.y_1_mu_decoder(z)
+        y_0_mu_dec = self.y_0_mu_decoder(z)
         y_mu_dec = y_1_mu_dec * t_hat_dec + y_0_mu_dec * (1 - t_hat_dec)
-        # y_hat_dec = self.__reparam_gaussian(y_mu_dec, torch.ones_like(y_mu_dec)) # reparametrization
-        y_hat_dec = y_mu_dec
+        y_hat_dec = self.__reparam_gaussian(y_mu_dec, torch.ones_like(y_mu_dec)) # reparametrization
         
         return y_mu_enc, z_mu, z_var, x_con_mu, x_con_var, p_x_dis, y_mu_dec, y_hat_dec
     
@@ -293,7 +269,7 @@ class cevae_continuous(nn.Module):
 
         inference_1_sample = batch.copy()
         inference_1_sample['t'] = torch.ones_like(inference_1_sample['t'])
-        inference_1 = self.inference(batch)
+        inference_1 = self.inference(inference_1_sample)
 
         return inference_1[-1] - inference_0[-1]
 
@@ -312,12 +288,12 @@ class cevae_continuous(nn.Module):
     
     def train_loss(self, output, batch):
         q_t, y_mu_enc, z_mu, z_var, p_t, x_con_mu, x_con_var, p_x_dis, y_mu_dec, y_hat_dec = output
-        q_t_loss = 0 #self.bern_prob_loss(q_t, batch['t'])
+        q_t_loss = self.bern_prob_loss(q_t, batch['t'])
         q_y_loss = self.gaus_prob_loss(y_mu_enc, torch.ones_like(y_mu_enc), batch['y'])
-        z_kl_loss = 0 #self.kl_divergence(z_mu, z_var)
-        p_t_loss = 0 #self.bern_prob_loss(p_t, batch['t'])
-        p_x_con_loss = 0 #self.gaus_prob_loss(x_con_mu, x_con_var, batch['x'][:, -1*self.num_con_x:])
-        p_x_dis_loss = 0 #self.bern_prob_loss(p_x_dis, batch['x'][:, :-1*self.num_con_x])
+        z_kl_loss = self.kl_divergence(z_mu, z_var)
+        p_t_loss = self.bern_prob_loss(p_t, batch['t'])
+        p_x_con_loss = self.gaus_prob_loss(x_con_mu, x_con_var, batch['x'][:, -1*self.num_con_x:])
+        p_x_dis_loss = self.bern_prob_loss(p_x_dis, batch['x'][:, :-1*self.num_con_x])
         p_y_loss = self.gaus_prob_loss(y_mu_dec, torch.ones_like(y_mu_dec), batch['y'])
         loss = q_t_loss + q_y_loss + z_kl_loss + p_t_loss + p_x_con_loss + p_x_dis_loss + p_y_loss
         return loss, q_t_loss, q_y_loss, z_kl_loss, p_t_loss, p_x_con_loss, p_x_dis_loss, p_y_loss
@@ -328,6 +304,6 @@ class cevae_continuous(nn.Module):
         loss += self.gaus_prob_loss(y_mu_enc, torch.ones_like(y_mu_enc), batch['y'])
         loss += self.kl_divergence(z_mu, z_var)
         loss += self.gaus_prob_loss(x_con_mu, x_con_var, batch['x'][:, -1*self.num_con_x:])
-        loss += 0 #self.bern_prob_loss(p_x_dis, batch['x'][:, :-1*self.num_con_x])
+        loss += self.bern_prob_loss(p_x_dis, batch['x'][:, :-1*self.num_con_x])
         loss += self.gaus_prob_loss(y_mu_dec, torch.ones_like(y_mu_dec), batch['y'])
         return loss
