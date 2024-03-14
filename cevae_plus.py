@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+from sklearn.isotonic import IsotonicRegression
 
 class cevae_plus(nn.Module):
     """
@@ -154,15 +155,15 @@ class cevae_plus(nn.Module):
         forward pass with input x alone
         """
         x = batch['x']
-        # t_hat_enc = batch['t'].unsqueeze(1)
-        # t_hat_dec = batch['t'].unsqueeze(1)
+        t_hat_enc = batch['t'].unsqueeze(1)
+        t_hat_dec = batch['t'].unsqueeze(1)
 
         # Encoder network
         # p(t|x)
         q_t = self.t_encoder(x)
-        q_t_reshaped = torch.cat((q_t, 1 - q_t), dim=1)
-        log_q_t_reshaped = torch.log(q_t_reshaped)
-        t_hat_enc = torch.nn.functional.gumbel_softmax(log_q_t_reshaped, tau=1, hard=True, dim=-1)[:, 0].unsqueeze(1) # reparametrization
+        # q_t_reshaped = torch.cat((q_t, 1 - q_t), dim=1)
+        # log_q_t_reshaped = torch.log(q_t_reshaped)
+        # t_hat_enc = torch.nn.functional.gumbel_softmax(log_q_t_reshaped, tau=1, hard=True, dim=-1)[:, 0].unsqueeze(1) # reparametrization
 
         # p(y|x, t)
         q_y_temp = self.y_encoder(x)
@@ -189,9 +190,9 @@ class cevae_plus(nn.Module):
         # Decoder network
         # p(t|z)
         p_t = self.t_decoder(z)
-        p_t_reshaped = torch.cat((p_t, 1 - p_t), dim=1)
-        log_p_t_reshaped = torch.log(p_t_reshaped)
-        t_hat_dec = torch.nn.functional.gumbel_softmax(log_p_t_reshaped, tau=1, hard=True, dim=-1)[:, 0].unsqueeze(1) # reparametrization
+        # p_t_reshaped = torch.cat((p_t, 1 - p_t), dim=1)
+        # log_p_t_reshaped = torch.log(p_t_reshaped)
+        # t_hat_dec = torch.nn.functional.gumbel_softmax(log_p_t_reshaped, tau=1, hard=True, dim=-1)[:, 0].unsqueeze(1) # reparametrization
         
         x_temp = self.x_decoder(z)
 
