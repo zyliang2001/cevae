@@ -5,16 +5,16 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from dataset import IST_Proxy_Dataset
 from torch.utils.data import DataLoader
-from cevae_plus import cevae_plus
+from cevae_pro_max import cevae_pro_max
 import wandb
 from tqdm import tqdm
 import sys
 sys.path.append('.')
 
 def main():
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    #device = "cpu"
-    IST_proxy_data = pd.read_csv('data/IST_final.csv')
+    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = "cpu"
+    IST_proxy_data = pd.read_csv('data/IST_Done.csv')
 
     # Define variables
     x_cat_variables = ['STYPE_PROXY_LACS', 'STYPE_PROXY_PACS', 'STYPE_PROXY_POCS', 'STYPE_PROXY_TACS', 'STYPE_PROXY_OTH',
@@ -41,13 +41,13 @@ def main():
     test_loader = DataLoader(test_dataset, batch_size=15253, shuffle=False)
 
     # Define the network
-    model = cevae_plus(len(x_variables), len(x_con_variables)).to(device)
+    model = cevae_pro_max(len(x_variables), len(x_con_variables)).to(device)
     max_epochs = 100
 
     # Define the optimizer
     optimizer = optim.Adam(model.parameters(), lr=0.0001)
 
-    wandb.init(project="CPH200B A3", entity="zhongyuan_liang", name="part2_final", sync_tensorboard=True)
+    wandb.init(project="CPH200B A3", entity="zhongyuan_liang", name="cevae_pro_max", sync_tensorboard=True)
     wandb.watch(model)
     for __ in tqdm(range(max_epochs)):
         for __, sample in enumerate(train_loader):
@@ -55,46 +55,41 @@ def main():
             model.train()
             optimizer.zero_grad()
             output = model(sample)
-            loss_with_sampled_t, q_t_loss, q_y_loss, z_kl_loss, p_t_loss, p_x_con_loss, p_x_dis_loss, p_y_loss = model.train_loss(output, sample)
-            loss_with_sampled_t.backward()
+            loss_with_true_t, q_t_loss, q_y_loss, z_kl_loss, mmd_loss, p_t_loss, p_x_con_loss, p_x_dis_loss, p_y_loss = model.train_loss(output, sample)
+            loss_with_true_t.backward()
             optimizer.step()
             cate = model.cate(sample)
-            with torch.cuda.device(device):
-                wandb.log({"Train Overall Loss": loss_with_sampled_t})
-                wandb.log({"Train Encoder t Reconstruction Loss": q_t_loss})
-                wandb.log({"Train Encoder y Reconstruction Loss": q_y_loss})
-                wandb.log({"Train Z KL Loss": z_kl_loss})
-                wandb.log({"Train Decoder t Reconstruction Loss": p_t_loss})
-                wandb.log({"Train Decoder x Continuous Reconstruction Loss": p_x_con_loss})
-                wandb.log({"Train Decoder x Discrete Reconstruction Loss": p_x_dis_loss})
-                wandb.log({"Train Decoder y Reconstruction Loss": p_y_loss})
-                wandb.log({"Train_ATE": cate.mean()})
+
+            wandb.log({"Train Overall Loss": loss_with_true_t})
+            wandb.log({"Train Encoder t Reconstruction Loss": q_t_loss})
+            wandb.log({"Train Encoder y Reconstruction Loss": q_y_loss})
+            wandb.log({"Train Z KL Loss": z_kl_loss})
+            wandb.log({"Train Z MMD Loss": mmd_loss})
+            wandb.log({"Train Decoder t Reconstruction Loss": p_t_loss})
+            wandb.log({"Train Decoder x Continuous Reconstruction Loss": p_x_con_loss})
+            wandb.log({"Train Decoder x Discrete Reconstruction Loss": p_x_dis_loss})
+            wandb.log({"Train Decoder y Reconstruction Loss": p_y_loss})
+            wandb.log({"Train_ATE": cate.mean()})
 
         for __, sample in enumerate(val_loader):
             sample = {key: value.to(device) for key, value in sample.items()}
             model.eval()
             output = model(sample)
-            loss_with_sampled_t = model.train_loss(output, sample)
-            output = model.inference(sample)
-            loss_with_true_t = model.inference_loss(output, sample)
+            loss_with_true_t = model.train_loss(output, sample)[0]
             cate = model.cate(sample)
-            with torch.cuda.device(device):
-                # wandb.log({"Validation Loss with Sampled t": loss_with_sampled_t})
-                wandb.log({"Validation Loss with True t": loss_with_true_t})
-                wandb.log({"Validation_ATE": cate.mean()})
+
+            wandb.log({"Validation Loss with True t": loss_with_true_t})
+            wandb.log({"Validation_ATE": cate.mean()})
 
         for __, sample in enumerate(test_loader):
             sample = {key: value.to(device) for key, value in sample.items()}
             model.eval()
             output = model(sample)
-            loss_with_sampled_t = model.train_loss(output, sample)
-            output = model.inference(sample)
-            loss_with_true_t = model.inference_loss(output, sample)
+            loss_with_true_t = model.train_loss(output, sample)[0]
             cate = model.cate(sample)
-            with torch.cuda.device(device):
-                # wandb.log({"Test Loss with Sampled t": loss_with_sampled_t})
-                wandb.log({"Test Loss with True t": loss_with_true_t})
-                wandb.log({"Test_ATE": cate.mean()})
+
+            wandb.log({"Test Loss with True t": loss_with_true_t})
+            wandb.log({"Test_ATE": cate.mean()})
     wandb.finish()
 
 if __name__ == "__main__":
